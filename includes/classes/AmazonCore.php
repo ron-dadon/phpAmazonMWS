@@ -413,6 +413,28 @@ abstract class AmazonCore{
             $s=key($store);
         }
         
+                /*
+        * Gilad fix -
+         * adding support for adding multiple dynamic stores on the fly and not to the config file at the start.
+        */
+        if(!array_key_exists($s, $this->store)){
+            if ( isset( $storeData['merchantId'], $storeData['marketplaceId'], $storeData['keyId'], $storeData['secretKey'], $storeData['serviceUrl'] )) {
+                //Adding data stores array
+                $this->store[$s] = array(
+                    'merchantId'    => $storeData['merchantId']     ,
+                    'marketplaceId' => $storeData['marketplaceId']  ,
+                    'keyId'         => $storeData['keyId']          ,
+                    'secretKey'     => $storeData['secretKey']      ,
+                    'mwsAuthToken'  => $storeData['mwsAuthToken']      ,
+                    'serviceUrl'    => $storeData['serviceUrl']     ,
+                );
+            }
+            else {
+                $this->log("Store $s does not exist and Store data is not valid!",'Warning');
+            }
+        }
+        //End of Gilad fix.
+
         if(array_key_exists($s, $store)){
             $this->storeName = $s;
             if(array_key_exists('merchantId', $store[$s])){
@@ -598,12 +620,21 @@ abstract class AmazonCore{
     protected function sendRequest($url,$param){
         $this->log("Making request to Amazon: ".$this->options['Action']);
         $response = $this->fetchURL($url,$param);
-        
-        while ($response['code'] == '503' && $this->throttleStop==false){
-            $this->sleep();
-            $response = $this->fetchURL($url,$param);
+        //** Gilad Fix - Sometimes response had no 'code' in it. */
+        if ( !isset($response['code'])) {
+            Logger::i()->addSystemLog("MWS SDK UnExpected response: " . json_encode($response), Logger::TYPE_EXCEPTION, Logger::STATUS_FAILED);
         }
-        
+        else {
+            while ($response['code'] == '503' && $this->throttleStop==false){
+                $this->sleep();
+                $response = $this->fetchURL($url,$param);
+                if ( !isset($response['code'])) {
+                    Logger::i()->addSystemLog("MWS SDK UnExpected response: " . json_encode($response), Logger::TYPE_EXCEPTION, Logger::STATUS_FAILED);
+                    break;
+                }
+            }
+        }
+
         $this->rawResponses[]=$response;
         return $response;
     }
