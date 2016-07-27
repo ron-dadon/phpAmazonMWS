@@ -622,14 +622,15 @@ abstract class AmazonCore{
         $response = $this->fetchURL($url,$param);
         //** Gilad Fix - Sometimes response had no 'code' in it. */
         if ( !isset($response['code'])) {
-            Logger::i()->addSystemLog("MWS SDK UnExpected response: " . json_encode($response), Logger::TYPE_EXCEPTION, Logger::STATUS_FAILED);
+            //Logger::i()->addSystemLog("MWS SDK UnExpected response: " . json_encode($response), Logger::TYPE_EXCEPTION, Logger::STATUS_FAILED);
+            // TODO: Add logging to spot errors
         }
         else {
             while ($response['code'] == '503' && $this->throttleStop==false){
                 $this->sleep();
                 $response = $this->fetchURL($url,$param);
                 if ( !isset($response['code'])) {
-                    Logger::i()->addSystemLog("MWS SDK UnExpected response: " . json_encode($response), Logger::TYPE_EXCEPTION, Logger::STATUS_FAILED);
+                    //Logger::i()->addSystemLog("MWS SDK UnExpected response: " . json_encode($response), Logger::TYPE_EXCEPTION, Logger::STATUS_FAILED);
                     break;
                 }
             }
