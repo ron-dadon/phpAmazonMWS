@@ -106,6 +106,7 @@ abstract class AmazonCore{
     protected $logpath;
     protected $env;
     protected $rawResponses = array();
+    protected $store = array();
     
     /**
      * AmazonCore constructor sets up key information used in all Amazon requests.
@@ -398,22 +399,24 @@ abstract class AmazonCore{
      * This parameter is not required if there is only one store defined in the config file.</p>
      * @throws Exception If the file can't be found.
      */
-    public function setStore($s=null){
+    public function setStore($s=null, $storeData = array()){
         if (file_exists($this->config)){
             include($this->config);
         } else {
             throw new Exception("Config file does not exist!");
         }
-        
-        if (empty($store) || !is_array($store)) {
-            throw new Exception("No stores defined!");
+ 
+//        $this->store = $store;
+//
+//        if (empty($store) || !is_array($store)) {
+//            throw new Exception("No stores defined!");
+//        }
+//
+        if (!isset($s) && count($this->store)===1) {
+            $s=key($this->store);
         }
         
-        if (!isset($s) && count($store)===1) {
-            $s=key($store);
-        }
-        
-                /*
+        /*
         * Gilad fix -
          * adding support for adding multiple dynamic stores on the fly and not to the config file at the start.
         */
@@ -435,25 +438,29 @@ abstract class AmazonCore{
         }
         //End of Gilad fix.
 
-        if(array_key_exists($s, $store)){
+        if(array_key_exists($s, $this->store)){
             $this->storeName = $s;
-            if(array_key_exists('merchantId', $store[$s])){
-                $this->options['SellerId'] = $store[$s]['merchantId'];
+            if(array_key_exists('merchantId', $this->store[$s])){
+                $this->options['SellerId'] = $this->store[$s]['merchantId'];
             } else {
                 $this->log("Merchant ID is missing!",'Warning');
             }
-            if(array_key_exists('keyId', $store[$s])){
-                $this->options['AWSAccessKeyId'] = $store[$s]['keyId'];
+            if(isset($this->store[$this->storeName]) && array_key_exists('marketplaceId', $this->store[$this->storeName])){
+                $this->options['MarketplaceId.Id.1'] = $this->store[$this->storeName]['marketplaceId'];
+            } else {
+                $this->log("Marketplace ID is missing",'Urgent');
+            }
+            if(array_key_exists('keyId', $this->store[$s])){
+                $this->options['AWSAccessKeyId'] = $this->store[$s]['keyId'];
             } else {
                 $this->log("Access Key ID is missing!",'Warning');
             }
-            if(!array_key_exists('secretKey', $store[$s])){
+            if(!array_key_exists('secretKey', $this->store[$s])){
                 $this->log("Secret Key is missing!",'Warning');
             }
             if (!empty($store[$s]['serviceUrl'])) {
-                $this->urlbase = $store[$s]['serviceUrl'];
+                $this->urlbase = $this->store[$s]['serviceUrl'];
             }
-            
         } else {
             $this->log("Store $s does not exist!",'Warning');
         }
@@ -596,13 +603,19 @@ abstract class AmazonCore{
         } else {
             throw new Exception("Config file does not exist!");
         }
-        
-        if (array_key_exists($this->storeName, $store) && array_key_exists('secretKey', $store[$this->storeName])){
-            $secretKey = $store[$this->storeName]['secretKey'];
+ 
+        if (array_key_exists($this->storeName, $this->store) && array_key_exists('secretKey', $this->store[$this->storeName])){
+            $secretKey = $this->store[$this->storeName]['secretKey'];
         } else {
             throw new Exception("Secret Key is missing!");
         }
-        
+ 
+        if (array_key_exists($this->storeName, $this->store) && array_key_exists('mwsAuthToken', $this->store[$this->storeName])){
+            $this->options['MWSAuthToken'] = $this->store[$this->storeName]['mwsAuthToken'];
+        } else {
+            throw new Exception("AuthToken is missing!");
+        }
+ 
         unset($this->options['Signature']);
         $this->options['Timestamp'] = $this->genTime();
         $this->options['Signature'] = $this->_signParameters($this->options, $secretKey);
@@ -727,6 +740,7 @@ abstract class AmazonCore{
         curl_setopt($ch,CURLOPT_TIMEOUT, 0);
         curl_setopt($ch,CURLOPT_FORBID_REUSE, 1);
         curl_setopt($ch,CURLOPT_FRESH_CONNECT, 1);
+        curl_setopt($ch,CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch,CURLOPT_HEADER, 1);
         curl_setopt($ch,CURLOPT_URL,$url);
         if (!empty($param)){
